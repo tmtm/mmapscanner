@@ -1,0 +1,141 @@
+require 'tempfile'
+
+$LOAD_PATH.unshift "#{File.dirname __FILE__}/../ext"
+require 'mmapscanner'
+
+describe MmapScanner do
+  before do
+    tmpf = Tempfile.new 'mmapscanner'
+    tmpf.write '0123456789'*1000
+    @file = File.open(tmpf.path)
+  end
+  subject{MmapScanner.new(@file)}
+  it '#size returns size of file' do
+    subject.size.should == 10000
+  end
+  it '#to_s returns contents of file' do
+    subject.to_s.should == '0123456789'*1000
+  end
+  describe '#slice' do
+    it 'returns MmapScanner' do
+      subject.slice(10, 100).should be_instance_of MmapScanner
+    end
+  end
+  it '#inspect returns "#<MmapScanner>"' do
+    subject.inspect.should == '#<MmapScanner>'
+  end
+  it '#pos returns current position' do
+    subject.pos.should == 0
+    subject.scan(/.../)
+    subject.pos.should == 3
+  end
+  describe '#pos=' do
+    it 'change current position' do
+      subject.pos = 100
+      subject.pos.should == 100
+    end
+    it 'raise error when negative value' do
+      expect{subject.pos = -1}.to raise_error(RangeError, 'out of range: -1')
+    end
+    it 'raise error when over size' do
+      expect{subject.pos = 10001}.to raise_error(RangeError, 'out of range: 10001 > 10000')
+      expect{subject.pos = 20000}.to raise_error(RangeError, 'out of range: 20000 > 10000')
+    end
+  end
+  describe '#scan' do
+    it 'returns matched data as MmapScanner' do
+      ret = subject.scan(/\d{10}/)
+      ret.class.should == MmapScanner
+      ret.to_s.should == '0123456789'
+    end
+    it 'returns nil if not matched' do
+      subject.scan(/123/).should be_nil
+    end
+    it 'forward current position' do
+      subject.scan(/\d{10}/)
+      subject.pos.should == 10
+    end
+  end
+  describe '#check' do
+    it 'returns matched data as MmapScanner' do
+      ret = subject.check(/\d{10}/)
+      ret.class.should == MmapScanner
+      ret.to_s.should == '0123456789'
+    end
+    it 'returns nil if not matched' do
+      subject.check(/123/).should be_nil
+    end
+    it 'do not forward current position' do
+      ret = subject.check(/\d{10}/)
+      subject.pos.should == 0
+    end
+  end
+  describe '#skip' do
+    it 'returns length of matched data' do
+      subject.skip(/\d{10}/).should == 10
+    end
+    it 'returns nil if not matched' do
+      subject.skip(/123/).should be_nil
+    end
+    it 'forward current position' do
+      subject.skip(/\d{10}/)
+      subject.pos.should == 10
+    end
+  end
+  describe '#match?' do
+    it 'returns length of matched data' do
+      subject.match?(/\d{10}/).should == 10
+    end
+    it 'returns nil if not matched' do
+      subject.match?(/123/).should be_nil
+    end
+    it 'do not forward current position' do
+      subject.match?(/\d{10}/)
+      subject.pos.should == 0
+    end
+  end
+  describe '#peek' do
+    it 'returns MmapScanner' do
+      subject.peek(10).should be_instance_of MmapScanner
+    end
+    it 'do not forward current position' do
+      subject.peek(10)
+      subject.pos.should == 0
+    end
+  end
+  describe '#eos?' do
+    it 'returns true if eos' do
+      subject.pos = 10000
+      subject.eos?.should == true
+    end
+    it 'returns false if not eos' do
+      subject.pos = 9999
+      subject.eos?.should == false
+    end
+  end
+  describe '#rest' do
+    it 'returns rest data as MmapScanner' do
+      subject.pos = 9997
+      ret = subject.rest
+      ret.should be_instance_of MmapScanner
+      ret.to_s.should == '789'
+    end
+  end
+  describe '.new with position' do
+    it '#size is length of rest data' do
+      MmapScanner.new(@file, 4096).size.should == 10000-4096
+    end
+    it 'raise error when invalid position' do
+      expect{MmapScanner.new(@file, 4095)}.to raise_error(Errno::EINVAL)
+    end
+  end
+  describe '.new with length' do
+    subject{MmapScanner.new(@file, nil, 10)}
+    it '#size is specified size' do
+      subject.size.should == 10
+    end
+    it 'raise error when negative' do
+      expect{MmapScanner.new(@file, nil, -1)}.to raise_error(RangeError, 'length out of range: -1')
+    end
+  end
+end
