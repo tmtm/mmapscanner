@@ -1,3 +1,7 @@
+2011-03-01  TOMITA Masahiro  <tommy@tmtm.org>
+
+	* MmmapScanner.new accept String.
+
 2011-02-05  TOMITA Masahiro  <tommy@tmtm.org>
 
 	* 0.1

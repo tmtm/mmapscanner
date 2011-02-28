@@ -38,6 +38,8 @@ Usage
         # ファイルの先頭 4096 バイト以降の 1234 バイト分を mmap
         ms = MmapScanner.new(File.open("filename"), 4096, 1234)
 
+* MmapScanner.new は文字列も受け付けます。文字列が途中で変更された時の動作は不定です。
+
 * size, length は mmap(2) したサイズを返します。
 * to_s は mmap(2) した領域を String で返します。Encoding は常に ASCII-8BIT です。
 * slice は mmap(2) した領域の一部を新たな MmapScanner オブジェクトで返します。
