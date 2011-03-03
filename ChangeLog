@@ -1,6 +1,6 @@
 2011-03-03  TOMITA Masahiro  <tommy@tmtm.org>
 
-	* add MmapScanner#scan_until()
+	* add MmapScanner#scan_until(), #matched()
 
 2011-03-02  TOMITA Masahiro  <tommy@tmtm.org>
 

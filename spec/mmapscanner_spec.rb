@@ -104,6 +104,19 @@ describe MmapScanner do
         subject.pos.should == 0
       end
     end
+    describe '#matched' do
+      it 'returns matched data after scan' do
+        subject.scan(/\d{6}/)
+        subject.matched.to_s.should == '012345'
+      end
+      it 'returns matched data after scan_until' do
+        subject.scan_until(/4567/)
+        subject.matched.to_s.should == '4567'
+      end
+      it 'returns nil if there is not matched data' do
+        subject.matched.should be_nil
+      end
+    end
     describe '#peek' do
       it 'returns MmapScanner' do
         subject.peek(10).should be_instance_of MmapScanner

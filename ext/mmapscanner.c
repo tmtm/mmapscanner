@@ -77,6 +77,7 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
     rb_iv_set(obj, "size", SIZET2NUM(size));
     rb_iv_set(obj, "data", src_data);
     rb_iv_set(obj, "pos", INT2NUM(0));
+    rb_iv_set(obj, "matched_pos", Qnil);
     return Qnil;
 }
 
@@ -188,6 +189,8 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
         pos += matched_len;
         rb_iv_set(obj, "pos", SIZET2NUM(pos));
     }
+    rb_iv_set(obj, "matched_pos", SIZET2NUM(old_pos+regs.beg[0]));
+    rb_iv_set(obj, "matched_len", SIZET2NUM(regs.end[0]-regs.beg[0]));
     return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, ULL2NUM(old_pos), ULL2NUM(matched_len));
 }
 
@@ -244,6 +247,14 @@ static VALUE rest(VALUE obj)
     return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, rb_iv_get(obj, "pos"));
 }
 
+static VALUE matched(VALUE obj)
+{
+    VALUE pos = rb_iv_get(obj, "matched_pos");
+    if (pos == Qnil)
+        return Qnil;
+    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, pos, rb_iv_get(obj, "matched_len"));
+}
+
 void Init_mmapscanner(void)
 {
     cMmapScanner = rb_define_class("MmapScanner", rb_cObject);
@@ -264,6 +275,7 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "peek", peek, 1);
     rb_define_method(cMmapScanner, "eos?", eos_p, 0);
     rb_define_method(cMmapScanner, "rest", rest, 0);
+    rb_define_method(cMmapScanner, "matched", matched, 0);
 
     cMmap = rb_define_class_under(cMmapScanner, "Mmap", rb_cObject);
 }
