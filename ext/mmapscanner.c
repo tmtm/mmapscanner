@@ -68,8 +68,8 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
     } else {
         rb_raise(rb_eTypeError, "wrong argument type %s (expected File/String/MmapScanner)", rb_obj_classname(src));
     }
-    if (offset >= src_size)
-        rb_raise(rb_eRangeError, "length out of range: %zu >= %zu", offset, src_size);
+    if (offset > src_size)
+        rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, src_size);
     size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
     if (size > src_size - offset)
         size = src_size - offset;

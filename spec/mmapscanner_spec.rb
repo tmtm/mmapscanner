@@ -143,6 +143,10 @@ describe MmapScanner do
         ret.should be_instance_of MmapScanner
         ret.to_s.should == '789'
       end
+      it 'returns empty MmapScanner if it reached to end' do
+        subject.pos = 10000
+        subject.rest.to_s.should == ''
+      end
     end
     describe '.new with position' do
       it '#size is length of rest data' do
@@ -180,6 +184,13 @@ describe MmapScanner do
     let(:src){'0123456789'*1020}
     subject{MmapScanner.new(src, 100, 10000)}
     it_should_behave_like 'MmapScanner'
+    describe '.new with empty source' do
+      it 'returns empty MmapScanner' do
+        m = MmapScanner.new('')
+        m.size.should == 0
+        m.to_s.should be_empty
+      end
+    end
   end
 
   context 'with MmapScanner' do
@@ -191,5 +202,12 @@ describe MmapScanner do
     let(:src){MmapScanner.new(@file)}
     subject{MmapScanner.new(src, 100, 10000)}
     it_should_behave_like 'MmapScanner'
+    describe '.new with empty source' do
+      it 'returns empty MmapScanner' do
+        m = MmapScanner.new(src, 1020, 0)
+        m.size.should == 0
+        m.to_s.should be_empty
+      end
+    end
   end
 end

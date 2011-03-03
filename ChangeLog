@@ -1,6 +1,7 @@
 2011-03-03  TOMITA Masahiro  <tommy@tmtm.org>
 
 	* add MmapScanner#scan_until(), #matched()
+	* FIX: MmapScanner.new with empty string raises RangeError.
 
 2011-03-02  TOMITA Masahiro  <tommy@tmtm.org>
 
