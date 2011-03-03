@@ -51,6 +51,21 @@ describe MmapScanner do
         subject.pos.should == 10
       end
     end
+    describe '#scan_until' do
+      it 'returns matched data as MmapScanner' do
+        subject.scan(/012/)
+        ret = subject.scan_until(/678/)
+        ret.class.should == MmapScanner
+        ret.to_s.should == '345678'
+      end
+      it 'returns nil if not matched' do
+        subject.scan_until(/321/).should be_nil
+      end
+      it 'forward current position' do
+        subject.scan_until(/456/)
+        subject.pos.should == 7
+      end
+    end
     describe '#check' do
       it 'returns matched data as MmapScanner' do
         ret = subject.check(/\d{10}/)

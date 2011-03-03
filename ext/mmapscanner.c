@@ -127,7 +127,7 @@ static VALUE set_pos(VALUE obj, VALUE pos)
     return pos;
 }
 
-static VALUE scan_sub(VALUE obj, VALUE re, int forward)
+static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
 {
     regex_t *rb_reg_prepare_re(VALUE re, VALUE str);
     regex_t *reg;
@@ -159,10 +159,18 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward)
     if (!tmpreg) RREGEXP(re)->usecnt++;
 
     onig_region_init(&regs);
-    result = onig_match(reg, (UChar* )(ptr+pos),
-                        (UChar* )(ptr+size),
-                        (UChar* )(ptr+pos),
-                        &regs, ONIG_OPTION_NONE);
+    if (headonly) {
+        result = onig_match(reg, (UChar*)(ptr+pos),
+                            (UChar*)(ptr+size),
+                            (UChar*)(ptr+pos),
+                            &regs, ONIG_OPTION_NONE);
+    } else {
+        result = onig_search(reg, (UChar*)(ptr+pos),
+                             (UChar*)(ptr+size),
+                             (UChar*)(ptr+pos),
+                             (UChar*)(ptr+size),
+                            &regs, ONIG_OPTION_NONE);
+    }
     if (!tmpreg) RREGEXP(re)->usecnt--;
     if (tmpreg) {
         if (RREGEXP(re)->usecnt) {
@@ -185,17 +193,22 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward)
 
 static VALUE scan(VALUE obj, VALUE re)
 {
-    return scan_sub(obj, re, 1);
+    return scan_sub(obj, re, 1, 1);
+}
+
+static VALUE scan_until(VALUE obj, VALUE re)
+{
+    return scan_sub(obj, re, 1, 0);
 }
 
 static VALUE check(VALUE obj, VALUE re)
 {
-    return scan_sub(obj, re, 0);
+    return scan_sub(obj, re, 0, 1);
 }
 
 static VALUE skip(VALUE obj, VALUE re)
 {
-    VALUE ret = scan_sub(obj, re, 1);
+    VALUE ret = scan_sub(obj, re, 1, 1);
     if (ret == Qnil)
         return ret;
     return rb_iv_get(ret, "size");
@@ -203,7 +216,7 @@ static VALUE skip(VALUE obj, VALUE re)
 
 static VALUE match_p(VALUE obj, VALUE re)
 {
-    VALUE ret = scan_sub(obj, re, 0);
+    VALUE ret = scan_sub(obj, re, 0, 1);
     if (ret == Qnil)
         return ret;
     return rb_iv_get(ret, "size");
@@ -244,6 +257,7 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "pos", pos, 0);
     rb_define_method(cMmapScanner, "pos=", set_pos, 1);
     rb_define_method(cMmapScanner, "scan", scan, 1);
+    rb_define_method(cMmapScanner, "scan_until", scan_until, 1);
     rb_define_method(cMmapScanner, "check", check, 1);
     rb_define_method(cMmapScanner, "skip", skip, 1);
     rb_define_method(cMmapScanner, "match?", match_p, 1);
