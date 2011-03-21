@@ -13,6 +13,15 @@ typedef struct {
     size_t size;
 } mmap_data_t;
 
+typedef struct {
+    size_t offset;
+    size_t size;
+    size_t pos;
+    int matched;
+    size_t matched_pos;
+    size_t matched_len;
+} mmapscanner_t;
+
 static void mmap_free(mmap_data_t *data)
 {
     if (data->ptr)
@@ -33,12 +42,24 @@ static VALUE create_mmap_object(int fd, size_t offset, size_t size)
     return Data_Wrap_Struct(cMmap, 0, mmap_free, data);
 }
 
+VALUE allocate(VALUE klass)
+{
+    mmapscanner_t *data;
+    data = malloc(sizeof *data);
+    data->offset = 0;
+    data->size = 0;
+    data->pos = 0;
+    data->matched_pos = 0;
+    return Data_Wrap_Struct(klass, 0, free, data);
+}
+
 static VALUE initialize(int argc, VALUE *argv, VALUE obj)
 {
     VALUE src, voffset, vsize;
     size_t offset, size;
     size_t src_offset, src_size;
     VALUE src_data;
+    mmapscanner_t *data;
 
     rb_scan_args(argc, argv, "12", &src, &voffset, &vsize);
     if (voffset != Qnil && NUM2LL(voffset) < 0)
@@ -47,8 +68,9 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
         rb_raise(rb_eRangeError, "length out of range: %lld", NUM2LL(vsize));
     offset = voffset == Qnil ? 0 : NUM2SIZET(voffset);
     if (rb_obj_class(src) == cMmapScanner) {
-        src_offset = NUM2SIZET(rb_iv_get(src, "offset"));
-        src_size = NUM2SIZET(rb_iv_get(src, "size"));
+        Data_Get_Struct(src, mmapscanner_t, data);
+        src_offset = data->offset;
+        src_size = data->size;
         src_data = rb_iv_get(src, "data");
     } else if (TYPE(src) == T_FILE) {
         int fd;
@@ -73,23 +95,31 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
     size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
     if (size > src_size - offset)
         size = src_size - offset;
-    rb_iv_set(obj, "offset", SIZET2NUM(src_offset + offset));
-    rb_iv_set(obj, "size", SIZET2NUM(size));
+
+    Data_Get_Struct(obj, mmapscanner_t, data);
+    data->offset = src_offset + offset;
+    data->size = size;
+    data->pos = 0;
+    data->matched = 0;
+    data->matched_pos = 0;
+    data->matched_len = 0;
     rb_iv_set(obj, "data", src_data);
-    rb_iv_set(obj, "pos", INT2NUM(0));
-    rb_iv_set(obj, "matched_pos", Qnil);
     return Qnil;
 }
 
 static VALUE size(VALUE obj)
 {
-    return rb_iv_get(obj, "size");
+    mmapscanner_t *mdata;
+    Data_Get_Struct(obj, mmapscanner_t, mdata);
+    return SIZET2NUM(mdata->size);
 }
 
 static VALUE to_s(VALUE obj)
 {
-    size_t offset = NUM2SIZET(rb_iv_get(obj, "offset"));
-    size_t size = NUM2SIZET(rb_iv_get(obj, "size"));
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    size_t offset = ms->offset;
+    size_t size = ms->size;
     VALUE data = rb_iv_get(obj, "data");
     mmap_data_t *mdata;
 
@@ -111,25 +141,31 @@ static VALUE inspect(VALUE obj)
 
 static VALUE pos(VALUE obj)
 {
-    return rb_iv_get(obj, "pos");
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    return SIZET2NUM(ms->pos);
 }
 
 static VALUE set_pos(VALUE obj, VALUE pos)
 {
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t p, size;
 
     if (NUM2LL(pos) < 0)
         rb_raise(rb_eRangeError, "out of range: %lld", NUM2LL(pos));
     p = NUM2SIZET(pos);
-    size = NUM2SIZET(rb_iv_get(obj, "size"));
+    size = ms->size;
     if (p > size)
         rb_raise(rb_eRangeError, "out of range: %zu > %zu", p, size);
-    rb_iv_set(obj, "pos", pos);
+    ms->pos = p;
     return pos;
 }
 
-static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
+static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeonly)
 {
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     regex_t *rb_reg_prepare_re(VALUE re, VALUE str);
     regex_t *reg;
     int tmpreg;
@@ -142,8 +178,8 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
     mmap_data_t *mdata;
 
     Check_Type(re, T_REGEXP);
-    pos = NUM2SIZET(rb_iv_get(obj, "pos"));
-    size = NUM2SIZET(rb_iv_get(obj, "size"));
+    pos = ms->pos;
+    size = ms->size;
     if (pos >= size)
         return Qnil;
     data = rb_iv_get(obj, "data");
@@ -153,7 +189,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
         Data_Get_Struct(data, mmap_data_t, mdata);
         ptr = mdata->ptr;
     }
-    ptr += NUM2SIZET(rb_iv_get(obj, "offset"));
+    ptr += ms->offset;
 
     reg = rb_reg_prepare_re(re, rb_str_new("", 0));
     tmpreg = reg != RREGEXP(re)->ptr;
@@ -189,80 +225,81 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
     matched_len = regs.end[0];
     if (forward) {
         pos += matched_len;
-        rb_iv_set(obj, "pos", SIZET2NUM(pos));
+        ms->pos = pos;
     }
-    rb_iv_set(obj, "matched_pos", SIZET2NUM(old_pos+regs.beg[0]));
-    rb_iv_set(obj, "matched_len", SIZET2NUM(regs.end[0]-regs.beg[0]));
+    ms->matched = 1;
+    ms->matched_pos = old_pos+regs.beg[0];
+    ms->matched_len = regs.end[0]-regs.beg[0];
 
     onig_region_free(&regs, 0);
 
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, ULL2NUM(old_pos), ULL2NUM(matched_len));
+    if (sizeonly)
+        return SIZET2NUM(matched_len);
+    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(old_pos), SIZET2NUM(matched_len));
 }
 
 static VALUE scan(VALUE obj, VALUE re)
 {
-    return scan_sub(obj, re, 1, 1);
+    return scan_sub(obj, re, 1, 1, 0);
 }
 
 static VALUE scan_until(VALUE obj, VALUE re)
 {
-    return scan_sub(obj, re, 1, 0);
+    return scan_sub(obj, re, 1, 0, 0);
 }
 
 static VALUE check(VALUE obj, VALUE re)
 {
-    return scan_sub(obj, re, 0, 1);
+    return scan_sub(obj, re, 0, 1, 0);
 }
 
 static VALUE skip(VALUE obj, VALUE re)
 {
-    VALUE ret = scan_sub(obj, re, 1, 1);
-    if (ret == Qnil)
-        return ret;
-    return rb_iv_get(ret, "size");
+    return scan_sub(obj, re, 1, 1, 1);
 }
 
 static VALUE match_p(VALUE obj, VALUE re)
 {
-    VALUE ret = scan_sub(obj, re, 0, 1);
-    if (ret == Qnil)
-        return ret;
-    return rb_iv_get(ret, "size");
+    return scan_sub(obj, re, 0, 1, 1);
 }
 
 static VALUE peek(VALUE obj, VALUE size)
 {
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t sz = NUM2SIZET(size);
-    size_t data_pos = NUM2SIZET(rb_iv_get(obj, "pos"));
-    size_t data_size = NUM2SIZET(rb_iv_get(obj, "size"));
-    if (sz > data_size - data_pos)
-        sz = data_size - data_pos;
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(data_pos), SIZET2NUM(sz));
+    if (sz > ms->size - ms->pos)
+        sz = ms->size - ms->pos;
+    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(ms->pos), SIZET2NUM(sz));
 }
 
 static VALUE eos_p(VALUE obj)
 {
-    size_t data_pos = NUM2SIZET(rb_iv_get(obj, "pos"));
-    size_t data_size = NUM2SIZET(rb_iv_get(obj, "size"));
-    return data_pos >= data_size ? Qtrue : Qfalse;
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    return ms->pos >= ms->size ? Qtrue : Qfalse;
 }
 
 static VALUE rest(VALUE obj)
 {
-    return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, rb_iv_get(obj, "pos"));
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, SIZET2NUM(ms->pos));
 }
 
 static VALUE matched(VALUE obj)
 {
-    VALUE pos = rb_iv_get(obj, "matched_pos");
-    if (pos == Qnil)
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    if (ms->matched == 0)
         return Qnil;
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, pos, rb_iv_get(obj, "matched_len"));
+    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(ms->matched_pos), SIZET2NUM(ms->matched_len));
 }
 
 void Init_mmapscanner(void)
 {
     cMmapScanner = rb_define_class("MmapScanner", rb_cObject);
+    rb_define_alloc_func(cMmapScanner, allocate);
     rb_define_method(cMmapScanner, "initialize", initialize, -1);
     rb_define_method(cMmapScanner, "size", size, 0);
     rb_define_method(cMmapScanner, "length", size, 0);
