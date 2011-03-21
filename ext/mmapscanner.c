@@ -20,6 +20,8 @@ typedef struct {
     int matched;
     size_t matched_pos;
     struct re_registers regs;
+    VALUE data;
+    VALUE dummy_str;
 } mmapscanner_t;
 
 static void mmap_free(mmap_data_t *data)
@@ -48,6 +50,12 @@ static void mmapscanner_free(mmapscanner_t *ms)
     free(ms);
 }
 
+static void mark(mmapscanner_t *ms)
+{
+    rb_gc_mark_maybe(ms->data);
+    rb_gc_mark_maybe(ms->dummy_str);
+}
+
 VALUE allocate(VALUE klass)
 {
     mmapscanner_t *ms;
@@ -57,7 +65,8 @@ VALUE allocate(VALUE klass)
     ms->pos = 0;
     ms->matched_pos = 0;
     onig_region_init(&ms->regs);
-    return Data_Wrap_Struct(klass, 0, mmapscanner_free, ms);
+    ms->dummy_str = rb_str_new("", 0);
+    return Data_Wrap_Struct(klass, mark, mmapscanner_free, ms);
 }
 
 static VALUE initialize(int argc, VALUE *argv, VALUE obj)
@@ -78,7 +87,7 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
         Data_Get_Struct(src, mmapscanner_t, ms);
         src_offset = ms->offset;
         src_size = ms->size;
-        src_data = rb_iv_get(src, "data");
+        src_data = ms->data;
     } else if (TYPE(src) == T_FILE) {
         int fd;
         struct stat st;
@@ -109,7 +118,7 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
     ms->pos = 0;
     ms->matched = 0;
     ms->matched_pos = 0;
-    rb_iv_set(obj, "data", src_data);
+    ms->data = src_data;
     return Qnil;
 }
 
@@ -126,7 +135,7 @@ static VALUE to_s(VALUE obj)
     Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t offset = ms->offset;
     size_t size = ms->size;
-    VALUE data = rb_iv_get(obj, "data");
+    VALUE data = ms->data;
     mmap_data_t *mdata;
 
     if (TYPE(data) == T_STRING)
@@ -187,7 +196,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     size = ms->size;
     if (pos >= size)
         return Qnil;
-    data = rb_iv_get(obj, "data");
+    data = ms->data;
     if (TYPE(data) == T_STRING)
         ptr = RSTRING_PTR(data);
     else {
@@ -196,7 +205,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     }
     ptr += ms->offset;
 
-    reg = rb_reg_prepare_re(re, rb_str_new("", 0));
+    reg = rb_reg_prepare_re(re, ms->dummy_str);
     tmpreg = reg != RREGEXP(re)->ptr;
     if (!tmpreg) RREGEXP(re)->usecnt++;
 
