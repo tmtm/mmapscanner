@@ -181,8 +181,10 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
             RREGEXP(re)->ptr = reg;
         }
     }
-    if (result < 0)
+    if (result < 0) {
+        onig_region_free(&regs, 0);
         return Qnil;
+    }
     old_pos = pos;
     matched_len = regs.end[0];
     if (forward) {
@@ -191,6 +193,9 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly)
     }
     rb_iv_set(obj, "matched_pos", SIZET2NUM(old_pos+regs.beg[0]));
     rb_iv_set(obj, "matched_len", SIZET2NUM(regs.end[0]-regs.beg[0]));
+
+    onig_region_free(&regs, 0);
+
     return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, ULL2NUM(old_pos), ULL2NUM(matched_len));
 }
 
