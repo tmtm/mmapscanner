@@ -1,5 +1,6 @@
 2011-03-23  TOMITA Masahiro  <tommy@tmtm.org>
 
+	* 0.3.1
 	* add MmapScanner#matched_str
 
 2011-03-22  TOMITA Masahiro  <tommy@tmtm.org>
