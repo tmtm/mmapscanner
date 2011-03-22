@@ -53,6 +53,7 @@ Usage
 * rest はポインタ以降のデータを返します。
 * matched は正規表現に一致した部分を MmapScanner オブジェクトで返します。
 * matched(n) は正規表現の n番目の括弧に一致した部分を MmapScanner オブジェクトで返します。
+* matched_str は matched と同じですが、文字列を返します。
 * pos は現在のポインタの位置を返します。
 * pos= でポインタ位置を変更することができます。
 

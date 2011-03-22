@@ -66,7 +66,7 @@ VALUE allocate(VALUE klass)
     ms->matched = 0;
     ms->matched_pos = 0;
     onig_region_init(&ms->regs);
-    ms->dummy_str = rb_str_new("", 0);
+    ms->dummy_str = Qnil;
     return Data_Wrap_Struct(klass, mark, mmapscanner_free, ms);
 }
 
@@ -186,6 +186,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     char *ptr;
     mmap_data_t *mdata;
 
+    ms->matched = 0;
     Check_Type(re, T_REGEXP);
     if (ms->pos >= ms->size)
         return Qnil;
@@ -197,6 +198,8 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     }
     ptr += ms->offset;
 
+    if (ms->dummy_str == Qnil)
+        ms->dummy_str = rb_str_new("", 0);
     reg = rb_reg_prepare_re(re, ms->dummy_str);
     tmpreg = reg != RREGEXP(re)->ptr;
     if (!tmpreg) RREGEXP(re)->usecnt++;
@@ -285,15 +288,11 @@ static VALUE rest(VALUE obj)
     return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, SIZET2NUM(ms->pos));
 }
 
-static VALUE matched(int argc, VALUE *argv, VALUE obj)
+static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, size_t *pos, size_t *len)
 {
-    mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     int i = 0;
-    size_t pos, len;
-
     if (ms->matched == 0)
-        return Qnil;
+        return 0;
     if (argc == 0)
         i = 0;
     else if (argc == 1)
@@ -301,12 +300,36 @@ static VALUE matched(int argc, VALUE *argv, VALUE obj)
     else
         rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..1)", argc);
     if (i < 0)
-        return Qnil;
+        return 0;
     if (i >= ms->regs.num_regs)
+        return 0;
+    *pos = ms->matched_pos + ms->regs.beg[i];
+    *len = ms->regs.end[i] - ms->regs.beg[i];
+    return 1;
+}
+
+static VALUE matched(int argc, VALUE *argv, VALUE obj)
+{
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    size_t pos, len;
+    if (matched_sub(argc, argv, ms, &pos, &len) == 0)
         return Qnil;
-    pos = ms->matched_pos + ms->regs.beg[i];
-    len = ms->regs.end[i] - ms->regs.beg[i];
     return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(pos), SIZET2NUM(len));
+}
+
+static VALUE matched_str(int argc, VALUE *argv, VALUE obj)
+{
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    mmap_data_t *mdata;
+    size_t pos, len;
+    if (matched_sub(argc, argv, ms, &pos, &len) == 0)
+        return Qnil;
+    if (TYPE(ms->data) == T_STRING)
+        return rb_str_new(RSTRING_PTR(ms->data)+ms->offset+pos, len);
+    Data_Get_Struct(ms->data, mmap_data_t, mdata);
+    return rb_str_new(mdata->ptr+ms->offset+pos, len);
 }
 
 void Init_mmapscanner(void)
@@ -331,6 +354,7 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "eos?", eos_p, 0);
     rb_define_method(cMmapScanner, "rest", rest, 0);
     rb_define_method(cMmapScanner, "matched", matched, -1);
+    rb_define_method(cMmapScanner, "matched_str", matched_str, -1);
 
     cMmap = rb_define_class_under(cMmapScanner, "Mmap", rb_cObject);
 }
