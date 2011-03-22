@@ -63,6 +63,7 @@ VALUE allocate(VALUE klass)
     ms->offset = 0;
     ms->size = 0;
     ms->pos = 0;
+    ms->matched = 0;
     ms->matched_pos = 0;
     onig_region_init(&ms->regs);
     ms->dummy_str = rb_str_new("", 0);
@@ -132,16 +133,12 @@ static VALUE size(VALUE obj)
 static VALUE to_s(VALUE obj)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
-    size_t offset = ms->offset;
-    size_t size = ms->size;
-    VALUE data = ms->data;
     mmap_data_t *mdata;
-
-    if (TYPE(data) == T_STRING)
-        return rb_str_new(RSTRING_PTR(data)+offset, size);
-    Data_Get_Struct(data, mmap_data_t, mdata);
-    return rb_str_new(mdata->ptr+offset, size);
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    if (TYPE(ms->data) == T_STRING)
+        return rb_str_new(RSTRING_PTR(ms->data) + ms->offset, ms->size);
+    Data_Get_Struct(ms->data, mmap_data_t, mdata);
+    return rb_str_new(mdata->ptr + ms->offset, ms->size);
 }
 
 static VALUE slice(VALUE obj, VALUE pos, VALUE len)
@@ -187,20 +184,15 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     int result;
     size_t old_pos, matched_len;
     char *ptr;
-    size_t pos, size;
-    VALUE data;
     mmap_data_t *mdata;
 
     Check_Type(re, T_REGEXP);
-    pos = ms->pos;
-    size = ms->size;
-    if (pos >= size)
+    if (ms->pos >= ms->size)
         return Qnil;
-    data = ms->data;
-    if (TYPE(data) == T_STRING)
-        ptr = RSTRING_PTR(data);
+    if (TYPE(ms->data) == T_STRING)
+        ptr = RSTRING_PTR(ms->data);
     else {
-        Data_Get_Struct(data, mmap_data_t, mdata);
+        Data_Get_Struct(ms->data, mmap_data_t, mdata);
         ptr = mdata->ptr;
     }
     ptr += ms->offset;
@@ -210,15 +202,15 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     if (!tmpreg) RREGEXP(re)->usecnt++;
 
     if (headonly) {
-        result = onig_match(reg, (UChar*)(ptr+pos),
-                            (UChar*)(ptr+size),
-                            (UChar*)(ptr+pos),
+        result = onig_match(reg, (UChar*)(ptr + ms->pos),
+                            (UChar*)(ptr + ms->size),
+                            (UChar*)(ptr + ms->pos),
                             &ms->regs, ONIG_OPTION_NONE);
     } else {
-        result = onig_search(reg, (UChar*)(ptr+pos),
-                             (UChar*)(ptr+size),
-                             (UChar*)(ptr+pos),
-                             (UChar*)(ptr+size),
+        result = onig_search(reg, (UChar*)(ptr + ms->pos),
+                             (UChar*)(ptr + ms->size),
+                             (UChar*)(ptr + ms->pos),
+                             (UChar*)(ptr + ms->size),
                              &ms->regs, ONIG_OPTION_NONE);
     }
     if (!tmpreg) RREGEXP(re)->usecnt--;
@@ -232,12 +224,10 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     }
     if (result < 0)
         return Qnil;
-    old_pos = pos;
+    old_pos = ms->pos;
     matched_len = ms->regs.end[0];
-    if (forward) {
-        pos += matched_len;
-        ms->pos = pos;
-    }
+    if (forward)
+        ms->pos += matched_len;
     ms->matched = 1;
     ms->matched_pos = old_pos;
 
@@ -299,14 +289,17 @@ static VALUE matched(int argc, VALUE *argv, VALUE obj)
 {
     mmapscanner_t *ms;
     Data_Get_Struct(obj, mmapscanner_t, ms);
-    VALUE nth;
     int i = 0;
     size_t pos, len;
 
-    if (rb_scan_args(argc, argv, "01", &nth) == 1)
-        i = NUM2LONG(nth);
     if (ms->matched == 0)
         return Qnil;
+    if (argc == 0)
+        i = 0;
+    else if (argc == 1)
+        i = NUM2LONG(argv[0]);
+    else
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..1)", argc);
     if (i < 0)
         return Qnil;
     if (i >= ms->regs.num_regs)
