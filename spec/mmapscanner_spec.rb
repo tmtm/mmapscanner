@@ -204,6 +204,24 @@ describe MmapScanner do
     end
   end
 
+  context 'with Mmap' do
+    before do
+      tmpf = Tempfile.new 'mmapscanner'
+      tmpf.write '0123456789'*1020
+      @file = File.open(tmpf.path)
+    end
+    let(:src){MmapScanner::Mmap.new(@file)}
+    subject{MmapScanner.new(src, 100, 10000)}
+    it_should_behave_like 'MmapScanner'
+    describe '.new with empty source' do
+      it 'returns empty MmapScanner' do
+        m = MmapScanner.new(src, 1020, 0)
+        m.size.should == 0
+        m.to_s.should be_empty
+      end
+    end
+  end
+
   context 'with MmapScanner' do
     before do
       tmpf = Tempfile.new 'mmapscanner'

@@ -1,3 +1,7 @@
+2011-05-11  TOMITA Masahiro  <tommy@tmtm.org>
+
+	* MmapScanner.new accept MmapScanner::Mmap.
+
 2011-03-23  TOMITA Masahiro  <tommy@tmtm.org>
 
 	* 0.3.1
