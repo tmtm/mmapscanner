@@ -3,6 +3,29 @@ require 'tempfile'
 $LOAD_PATH.unshift "#{File.dirname __FILE__}/../ext"
 require 'mmapscanner'
 
+describe MmapScanner::Mmap do
+  before do
+    tmpf = Tempfile.new 'mmapscanner'
+    tmpf.write '0123456789'*1000
+    @file = File.open(tmpf.path)
+  end
+  subject{MmapScanner::Mmap.new(@file)}
+  it '#size returns file size' do
+    subject.size.should == 10000
+  end
+  it '.new with invalid offset raise error' do
+    expect{MmapScanner::Mmap.new(@file, 4095)}.to raise_error(Errno::EINVAL)
+  end
+  context 'unmapped object' do
+    before do
+      subject.unmap
+    end
+    it '#unmap raise error' do
+      expect{subject.unmap}.to raise_error(RuntimeError, 'already unmapped')
+    end
+  end
+end
+
 describe MmapScanner do
   shared_examples_for 'MmapScanner' do
     it '#size returns size of file' do
@@ -184,9 +207,9 @@ describe MmapScanner do
     let(:src){@file}
     subject{MmapScanner.new(src)}
     it_should_behave_like 'MmapScanner'
-    describe '.new with position' do
-      it 'raise error when invalid position' do
-        expect{MmapScanner.new(@file, 4095)}.to raise_error(Errno::EINVAL)
+    describe '#data' do
+      it 'returns Mmap object' do
+        subject.data.should be_kind_of MmapScanner::Mmap
       end
     end
   end
@@ -200,6 +223,11 @@ describe MmapScanner do
         m = MmapScanner.new('')
         m.size.should == 0
         m.to_s.should be_empty
+      end
+    end
+    describe '#data' do
+      it 'returns source object' do
+        subject.data.should be_equal src
       end
     end
   end
@@ -220,6 +248,26 @@ describe MmapScanner do
         m.to_s.should be_empty
       end
     end
+    describe '#data' do
+      it 'returns source object' do
+        subject.data.should be_equal src
+      end
+    end
+    context 'unmapped object' do
+      before do
+        subject.scan(/.../)
+        src.unmap
+      end
+      it '#to_s raise RuntimeError' do
+        expect{subject.to_s}.to raise_error(RuntimeError, 'already unmapped')
+      end
+      it '#scan raise RuntimeError' do
+        expect{subject.scan(/./)}.to raise_error(RuntimeError, 'already unmapped')
+      end
+      it '#matched_str raise RuntimeError' do
+        expect{subject.matched_str}.to raise_error(RuntimeError, 'already unmapped')
+      end
+    end
   end
 
   context 'with MmapScanner' do
@@ -231,6 +279,11 @@ describe MmapScanner do
     let(:src){MmapScanner.new(@file)}
     subject{MmapScanner.new(src, 100, 10000)}
     it_should_behave_like 'MmapScanner'
+    describe '#data' do
+      it 'returns data object' do
+        subject.data.should be_kind_of MmapScanner::Mmap
+      end
+    end
     describe '.new with empty source' do
       it 'returns empty MmapScanner' do
         m = MmapScanner.new(src, 1020, 0)

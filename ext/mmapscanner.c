@@ -122,9 +122,9 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
 {
     VALUE src, voffset, vsize;
     size_t offset, size;
-    size_t src_offset, src_size;
-    VALUE src_data;
-    mmapscanner_t *ms;
+    size_t src_offset = 0, src_size = 0;
+    mmapscanner_t *self;
+    int src_size_defined = 0;
 
     rb_scan_args(argc, argv, "12", &src, &voffset, &vsize);
     if (voffset != Qnil && NUM2LL(voffset) < 0)
@@ -133,52 +133,40 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
         rb_raise(rb_eRangeError, "length out of range: %lld", NUM2LL(vsize));
     offset = voffset == Qnil ? 0 : NUM2SIZET(voffset);
     if (rb_obj_class(src) == cMmapScanner) {
+        mmapscanner_t *ms;
         Data_Get_Struct(src, mmapscanner_t, ms);
         src_offset = ms->offset;
         src_size = ms->size;
-        src_data = ms->data;
-        size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
-        if (size > src_size - offset)
-            size = src_size - offset;
-        if (offset > src_size)
-            rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, src_size);
-    } else if (rb_obj_class(src) == cMmap) {
-        mmap_data_t *data;
-        Data_Get_Struct(src, mmap_data_t, data);
-        src_data = src;
-        src_size = data->size;
-        src_offset = 0;
-        size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
-        if (size > src_size - offset)
-            size = src_size - offset;
-        if (offset > src_size)
-            rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, src_size);
+        src = ms->data;
+        src_size_defined = 1;
     } else if (TYPE(src) == T_FILE) {
-        mmap_data_t *data;
-        src_data = rb_funcall(cMmap, rb_intern("new"), 3, src, voffset, vsize);
-        Data_Get_Struct(src_data, mmap_data_t, data);
-        size = data->size;
-        src_offset = offset = 0;
-    } else if (TYPE(src) == T_STRING) {
-        src_offset = 0;
-        src_size = RSTRING_LEN(src);
-        src_data = src;
-        size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
-        if (size > src_size - offset)
-            size = src_size - offset;
-        if (offset > src_size)
-            rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, src_size);
-    } else {
-        rb_raise(rb_eTypeError, "wrong argument type %s (expected File/String/MmapScanner)", rb_obj_classname(src));
+        src = rb_funcall(cMmap, rb_intern("new"), 1, src);
     }
+    if (rb_obj_class(src) == cMmap) {
+        if (!src_size_defined) {
+            mmap_data_t *data;
+            Data_Get_Struct(src, mmap_data_t, data);
+            src_size = data->size;
+        }
+    } else if (TYPE(src) == T_STRING) {
+        if (!src_size_defined)
+            src_size = RSTRING_LEN(src);
+    } else {
+        rb_raise(rb_eTypeError, "wrong argument type %s (expected File/String/MmapScanner/MmapScanner::Mmap)", rb_obj_classname(src));
+    }
+    if (offset > src_size)
+        rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, src_size);
+    size = vsize == Qnil ? src_size - offset : NUM2SIZET(vsize);
+    if (size > src_size - offset)
+        size = src_size - offset;
 
-    Data_Get_Struct(obj, mmapscanner_t, ms);
-    ms->offset = src_offset + offset;
-    ms->size = size;
-    ms->pos = 0;
-    ms->matched = 0;
-    ms->matched_pos = 0;
-    ms->data = src_data;
+    Data_Get_Struct(obj, mmapscanner_t, self);
+    self->offset = src_offset + offset;
+    self->size = size;
+    self->pos = 0;
+    self->matched = 0;
+    self->matched_pos = 0;
+    self->data = src;
     return Qnil;
 }
 
@@ -189,6 +177,13 @@ static VALUE size(VALUE obj)
     return SIZET2NUM(ms->size);
 }
 
+static VALUE data(VALUE obj)
+{
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    return ms->data;
+}
+
 static VALUE to_s(VALUE obj)
 {
     mmapscanner_t *ms;
@@ -197,6 +192,8 @@ static VALUE to_s(VALUE obj)
     if (TYPE(ms->data) == T_STRING)
         return rb_str_new(RSTRING_PTR(ms->data) + ms->offset, ms->size);
     Data_Get_Struct(ms->data, mmap_data_t, mdata);
+    if (mdata->ptr == NULL)
+        rb_raise(rb_eRuntimeError, "already unmapped");
     return rb_str_new(mdata->ptr + ms->offset, ms->size);
 }
 
@@ -253,6 +250,8 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
         ptr = RSTRING_PTR(ms->data);
     else {
         Data_Get_Struct(ms->data, mmap_data_t, mdata);
+        if (mdata->ptr == NULL)
+            rb_raise(rb_eRuntimeError, "already unmapped");
         ptr = mdata->ptr;
     }
     ptr += ms->offset;
@@ -388,6 +387,8 @@ static VALUE matched_str(int argc, VALUE *argv, VALUE obj)
     if (TYPE(ms->data) == T_STRING)
         return rb_str_new(RSTRING_PTR(ms->data)+ms->offset+pos, len);
     Data_Get_Struct(ms->data, mmap_data_t, mdata);
+    if (mdata->ptr == NULL)
+        rb_raise(rb_eRuntimeError, "already unmapped");
     return rb_str_new(mdata->ptr+ms->offset+pos, len);
 }
 
@@ -398,6 +399,7 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "initialize", initialize, -1);
     rb_define_method(cMmapScanner, "size", size, 0);
     rb_define_method(cMmapScanner, "length", size, 0);
+    rb_define_method(cMmapScanner, "data", data, 0);
     rb_define_method(cMmapScanner, "to_s", to_s, 0);
     rb_define_method(cMmapScanner, "slice", slice, 2);
 //    rb_define_method(cMmapScanner, "[]", slice, 2);
