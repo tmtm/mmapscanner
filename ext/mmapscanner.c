@@ -346,7 +346,7 @@ static VALUE rest(VALUE obj)
     return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, SIZET2NUM(ms->pos));
 }
 
-static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, size_t *pos, size_t *len)
+static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, int *pos, int *len)
 {
     int i = 0;
     if (ms->matched == 0)
@@ -360,6 +360,8 @@ static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, size_t *pos, si
     if (i < 0)
         return 0;
     if (i >= ms->regs.num_regs)
+        return 0;
+    if (ms->regs.beg[i] < 0 || ms->regs.end[i] < 0)
         return 0;
     *pos = ms->matched_pos + ms->regs.beg[i];
     *len = ms->regs.end[i] - ms->regs.beg[i];

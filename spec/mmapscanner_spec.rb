@@ -142,12 +142,13 @@ describe MmapScanner do
     end
     describe '#matched(nth)' do
       it 'returns nth part of matched string' do
-        subject.scan(/(..)(..)(..)/)
+        subject.scan(/(..)((aa)|..)(..)/)
         subject.matched(0).to_s.should == '012345'
         subject.matched(1).to_s.should == '01'
         subject.matched(2).to_s.should == '23'
-        subject.matched(3).to_s.should == '45'
-        subject.matched(4).should be_nil
+        subject.matched(3).should be_nil
+        subject.matched(4).to_s.should == '45'
+        subject.matched(5).should be_nil
         subject.matched(-1).should be_nil
       end
     end
