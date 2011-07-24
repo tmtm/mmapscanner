@@ -95,7 +95,7 @@ static VALUE mmap_unmap(VALUE obj)
 static void mmapscanner_free(mmapscanner_t *ms)
 {
     onig_region_free(&ms->regs, 0);
-    free(ms);
+    xfree(ms);
 }
 
 static void mark(mmapscanner_t *ms)
@@ -107,13 +107,14 @@ static void mark(mmapscanner_t *ms)
 VALUE allocate(VALUE klass)
 {
     mmapscanner_t *ms;
-    ms = malloc(sizeof *ms);
+    ms = xmalloc(sizeof *ms);
     ms->offset = 0;
     ms->size = 0;
     ms->pos = 0;
     ms->matched = 0;
     ms->matched_pos = 0;
     onig_region_init(&ms->regs);
+    ms->data = Qnil;
     ms->dummy_str = Qnil;
     return Data_Wrap_Struct(klass, mark, mmapscanner_free, ms);
 }
@@ -170,6 +171,26 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
     return Qnil;
 }
 
+static VALUE create_from_mmapscanner(VALUE src, size_t offset, size_t size)
+{
+    mmapscanner_t *ms, *new;
+    VALUE obj;
+
+    Data_Get_Struct(src, mmapscanner_t, ms);
+
+    if (offset > ms->size)
+        rb_raise(rb_eRangeError, "length out of range: %zu > %zu", offset, ms->size);
+    if (size > ms->size - offset)
+        size = ms->size - offset;
+
+    obj = allocate(cMmapScanner);
+    Data_Get_Struct(obj, mmapscanner_t, new);
+    new->offset = ms->offset + offset;
+    new->size = size;
+    new->data = ms->data;
+    return obj;
+}
+
 static VALUE size(VALUE obj)
 {
     mmapscanner_t *ms;
@@ -199,7 +220,7 @@ static VALUE to_s(VALUE obj)
 
 static VALUE slice(VALUE obj, VALUE pos, VALUE len)
 {
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, pos, len);
+    return create_from_mmapscanner(obj, pos, len);
 }
 
 static VALUE inspect(VALUE obj)
@@ -294,7 +315,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
 
     if (sizeonly)
         return SIZET2NUM(matched_len);
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(old_pos), SIZET2NUM(matched_len));
+    return create_from_mmapscanner(obj, old_pos, matched_len);
 }
 
 static VALUE scan(VALUE obj, VALUE re)
@@ -329,7 +350,7 @@ static VALUE peek(VALUE obj, VALUE size)
     size_t sz = NUM2SIZET(size);
     if (sz > ms->size - ms->pos)
         sz = ms->size - ms->pos;
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(ms->pos), SIZET2NUM(sz));
+    return create_from_mmapscanner(obj, ms->pos, sz);
 }
 
 static VALUE eos_p(VALUE obj)
@@ -343,7 +364,7 @@ static VALUE rest(VALUE obj)
 {
     mmapscanner_t *ms;
     Data_Get_Struct(obj, mmapscanner_t, ms);
-    return rb_funcall(cMmapScanner, rb_intern("new"), 2, obj, SIZET2NUM(ms->pos));
+    return create_from_mmapscanner(obj, ms->pos, ms->size - ms->pos);
 }
 
 static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, int *pos, int *len)
@@ -375,7 +396,7 @@ static VALUE matched(int argc, VALUE *argv, VALUE obj)
     size_t pos, len;
     if (matched_sub(argc, argv, ms, &pos, &len) == 0)
         return Qnil;
-    return rb_funcall(cMmapScanner, rb_intern("new"), 3, obj, SIZET2NUM(pos), SIZET2NUM(len));
+    return create_from_mmapscanner(obj, pos, len);
 }
 
 static VALUE matched_str(int argc, VALUE *argv, VALUE obj)
