@@ -36,7 +36,8 @@ describe MmapScanner do
     end
     describe '#slice' do
       it 'returns MmapScanner' do
-        subject.slice(10, 100).should be_instance_of MmapScanner
+        subject.slice(5, 8).should be_instance_of MmapScanner
+        subject.slice(5, 8).to_s.should == '56789012'
       end
     end
     it '#inspect returns "#<MmapScanner>"' do

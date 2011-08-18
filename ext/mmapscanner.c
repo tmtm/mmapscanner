@@ -220,7 +220,11 @@ static VALUE to_s(VALUE obj)
 
 static VALUE slice(VALUE obj, VALUE pos, VALUE len)
 {
-    return create_from_mmapscanner(obj, pos, len);
+    if (NUM2LL(pos) < 0)
+        rb_raise(rb_eRangeError, "offset out of range: %lld", NUM2LL(pos));
+    if (NUM2LL(len) < 0)
+        rb_raise(rb_eRangeError, "length out of range: %lld", NUM2LL(len));
+    return create_from_mmapscanner(obj, NUM2ULL(pos), NUM2ULL(len));
 }
 
 static VALUE inspect(VALUE obj)
