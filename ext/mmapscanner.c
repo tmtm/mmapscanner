@@ -269,8 +269,8 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
 
     ms->matched = 0;
     Check_Type(re, T_REGEXP);
-    if (ms->pos >= ms->size)
-        return Qnil;
+   if (ms->pos > ms->size)
+       return Qnil;
     if (TYPE(ms->data) == T_STRING)
         ptr = RSTRING_PTR(ms->data);
     else {

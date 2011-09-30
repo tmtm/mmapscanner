@@ -226,6 +226,10 @@ describe MmapScanner do
         m.size.should == 0
         m.to_s.should be_empty
       end
+      it '#scan(//) returns empty MmapScanner' do
+        m = MmapScanner.new('').scan(//)
+        m.size.should == 0
+      end
     end
     describe '#data' do
       it 'returns source object' do
@@ -248,6 +252,10 @@ describe MmapScanner do
         m = MmapScanner.new(src, 1020, 0)
         m.size.should == 0
         m.to_s.should be_empty
+      end
+      it '#scan(//) returns empty MmapScanner' do
+        m = MmapScanner.new(src, 1020, 0).scan(//)
+        m.size.should == 0
       end
     end
     describe '#data' do
@@ -291,6 +299,10 @@ describe MmapScanner do
         m = MmapScanner.new(src, 1020, 0)
         m.size.should == 0
         m.to_s.should be_empty
+      end
+      it '#scan(//) returns empty MmapScanner' do
+        m = MmapScanner.new(src, 1020, 0).scan(//)
+        m.size.should == 0
       end
     end
   end
