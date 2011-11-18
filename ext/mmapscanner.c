@@ -3,7 +3,17 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <ruby.h>
+#ifdef HAVE_RUBY_RUBY_H
 #include <ruby/io.h>
+#include <ruby/regex.h>
+#else
+#include <re.h>
+#endif
+
+#ifndef NUM2SIZET
+#define NUM2SIZET NUM2ULONG
+#define SIZET2NUM ULONG2NUM
+#endif
 
 static VALUE cMmapScanner;
 static VALUE cMmap;
@@ -56,7 +66,7 @@ static VALUE mmap_initialize(int argc, VALUE *argv, VALUE obj)
         rb_raise(rb_eRangeError, "offset out of range: %lld", NUM2LL(voffset));
     if (vlength != Qnil && NUM2LL(vlength) < 0)
         rb_raise(rb_eRangeError, "length out of range: %lld", NUM2LL(vlength));
-    int fd = RFILE(file)->fptr->fd;
+    int fd = FIX2INT(rb_funcall(file, rb_intern("fileno"), 0));
     struct stat st;
     if (fstat(fd, &st) < 0)
         rb_sys_fail("fstat");
@@ -94,7 +104,11 @@ static VALUE mmap_unmap(VALUE obj)
 
 static void mmapscanner_free(mmapscanner_t *ms)
 {
+#ifdef HAVE_RUBY_ONIGURUMA_H
     onig_region_free(&ms->regs, 0);
+#else
+    re_free_registers(&ms->regs);
+#endif
     xfree(ms);
 }
 
@@ -113,7 +127,11 @@ VALUE allocate(VALUE klass)
     ms->pos = 0;
     ms->matched = 0;
     ms->matched_pos = 0;
+#ifdef HAVE_RUBY_ONIGURUMA_H
     onig_region_init(&ms->regs);
+#else
+    memset(&ms->regs, 0, sizeof ms->regs);
+#endif
     ms->data = Qnil;
     ms->dummy_str = Qnil;
     return Data_Wrap_Struct(klass, mark, mmapscanner_free, ms);
@@ -281,6 +299,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     }
     ptr += ms->offset;
 
+#ifdef HAVE_RUBY_ONIGURUMA_H
     if (ms->dummy_str == Qnil)
         ms->dummy_str = rb_str_new("", 0);
     reg = rb_reg_prepare_re(re, ms->dummy_str);
@@ -308,6 +327,20 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
             RREGEXP(re)->ptr = reg;
         }
     }
+#else
+    if (headonly) {
+        result = re_match(RREGEXP(re)->ptr,
+                          ptr+ms->pos, ms->size,
+                          0,
+                          &(ms->regs));
+    } else {
+        result = re_search(RREGEXP(re)->ptr,
+                           ptr+ms->pos, ms->size,
+                           0,
+                           ms->size,
+                           &(ms->regs));
+    }
+#endif
     if (result < 0)
         return Qnil;
     old_pos = ms->pos;

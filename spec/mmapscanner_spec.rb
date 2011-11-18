@@ -7,6 +7,7 @@ describe MmapScanner::Mmap do
   before do
     tmpf = Tempfile.new 'mmapscanner'
     tmpf.write '0123456789'*1000
+    tmpf.flush
     @file = File.open(tmpf.path)
   end
   subject{MmapScanner::Mmap.new(@file)}
@@ -186,7 +187,11 @@ describe MmapScanner do
     end
     describe '.new with position' do
       it '#size is length of rest data' do
-        MmapScanner.new(src, 4096).size.should == src.size-4096
+        if src.respond_to? :size
+          MmapScanner.new(src, 4096).size.should == src.size-4096
+        else
+          MmapScanner.new(src, 4096).size.should == File.size(src.path)-4096
+        end
       end
     end
     describe '.new with length' do
@@ -204,6 +209,7 @@ describe MmapScanner do
     before do
       tmpf = Tempfile.new 'mmapscanner'
       tmpf.write '0123456789'*1000
+      tmpf.flush
       @file = File.open(tmpf.path)
     end
     let(:src){@file}
@@ -242,6 +248,7 @@ describe MmapScanner do
     before do
       tmpf = Tempfile.new 'mmapscanner'
       tmpf.write '0123456789'*1020
+      tmpf.flush
       @file = File.open(tmpf.path)
     end
     let(:src){MmapScanner::Mmap.new(@file)}
@@ -284,6 +291,7 @@ describe MmapScanner do
     before do
       tmpf = Tempfile.new 'mmapscanner'
       tmpf.write '0123456789'*1020
+      tmpf.flush
       @file = File.open(tmpf.path)
     end
     let(:src){MmapScanner.new(@file)}
