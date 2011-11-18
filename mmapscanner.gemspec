@@ -6,8 +6,7 @@ Gem::Specification.new do |spec|
   spec.homepage = 'http://github.com/tmtm/mmapscanner'
   spec.license = 'Ruby\'s'
   spec.name = 'mmapscanner'
-  spec.required_ruby_version = '>= 1.9.2'
   spec.summary = 'MmapScanner like StringScanner but it use mmap(2)-ed data'
   spec.test_files = Dir.glob('spec/*_spec.rb')
-  spec.version = '0.3.5'
+  spec.version = '0.3.6'
 end
