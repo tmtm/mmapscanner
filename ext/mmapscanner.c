@@ -330,12 +330,12 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
 #else
     if (headonly) {
         result = re_match(RREGEXP(re)->ptr,
-                          ptr+ms->pos, ms->size,
+                          ptr+ms->pos, ms->size - ms->pos,
                           0,
                           &(ms->regs));
     } else {
         result = re_search(RREGEXP(re)->ptr,
-                           ptr+ms->pos, ms->size,
+                           ptr+ms->pos, ms->size - ms->pos,
                            0,
                            ms->size,
                            &(ms->regs));
