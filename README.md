@@ -56,6 +56,7 @@ Usage
 * matched_str は matched と同じですが、文字列を返します。
 * pos は現在のポインタの位置を返します。
 * pos= でポインタ位置を変更することができます。
+* terminate はポインタを末尾に移動します。
 
 Copyright
 ---------

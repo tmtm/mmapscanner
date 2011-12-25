@@ -185,6 +185,12 @@ describe MmapScanner do
         subject.rest.to_s.should == ''
       end
     end
+    describe '#terminate' do
+      it 'set position to end of MmapScanner area' do
+        subject.terminate.should == subject
+        subject.pos.should == 10000
+      end
+    end
     describe '.new with position' do
       it '#size is length of rest data' do
         if src.respond_to? :size

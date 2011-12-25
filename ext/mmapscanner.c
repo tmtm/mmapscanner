@@ -452,6 +452,14 @@ static VALUE matched_str(int argc, VALUE *argv, VALUE obj)
     return rb_str_new(mdata->ptr+ms->offset+pos, len);
 }
 
+static VALUE terminate(VALUE obj)
+{
+    mmapscanner_t *ms;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
+    ms->pos = ms->size;
+    return obj;
+}
+
 void Init_mmapscanner(void)
 {
     cMmapScanner = rb_define_class("MmapScanner", rb_cObject);
@@ -476,6 +484,7 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "rest", rest, 0);
     rb_define_method(cMmapScanner, "matched", matched, -1);
     rb_define_method(cMmapScanner, "matched_str", matched_str, -1);
+    rb_define_method(cMmapScanner, "terminate", terminate, 0);
 
     cMmap = rb_define_class_under(cMmapScanner, "Mmap", rb_cObject);
     rb_define_alloc_func(cMmap, mmap_allocate);
