@@ -105,6 +105,20 @@ describe MmapScanner do
         subject.pos.should == 0
       end
     end
+    describe '#check_until' do
+      it 'returns matched data as MmapScanner' do
+        ret = subject.check_until(/123/)
+        ret.class.should == MmapScanner
+        ret.to_s.should == '0123'
+      end
+      it 'returns nil if not matched' do
+        subject.check_until(/abc/).should be_nil
+      end
+      it 'do not forward current position' do
+        ret = subject.check_until(/123/)
+        subject.pos.should == 0
+      end
+    end
     describe '#skip' do
       it 'returns length of matched data' do
         subject.skip(/\d{10}/).should == 10
@@ -117,6 +131,18 @@ describe MmapScanner do
         subject.pos.should == 10
       end
     end
+    describe '#skip_until' do
+      it 'returns length of matched data' do
+        subject.skip_until(/123/).should == 4
+      end
+      it 'returns nil if not matched' do
+        subject.skip_until(/abc/).should be_nil
+      end
+      it 'forward current position' do
+          subject.skip_until(/123/)
+          subject.pos.should == 4
+        end
+    end
     describe '#match?' do
       it 'returns length of matched data' do
         subject.match?(/\d{10}/).should == 10
@@ -126,6 +152,18 @@ describe MmapScanner do
       end
       it 'do not forward current position' do
         subject.match?(/\d{10}/)
+        subject.pos.should == 0
+      end
+    end
+    describe '#exist?' do
+      it 'returns length of matched data' do
+        subject.exist?(/123/).should == 4
+      end
+      it 'returns nil if not matched' do
+        subject.exist?(/abc/).should be_nil
+      end
+      it 'do not forward current position' do
+        subject.exist?(/123/)
         subject.pos.should == 0
       end
     end
@@ -171,6 +209,64 @@ describe MmapScanner do
       it 'returns false if not eos' do
         subject.pos = 9999
         subject.eos?.should == false
+      end
+    end
+    describe '#scan_full(re, true, true)' do
+      it 'is same as #scan' do
+        ret = subject.scan_full(/\d{10}/, true, true)
+        ret.class.should == MmapScanner
+        ret.to_s.should == '0123456789'
+        subject.pos.should == 10
+      end
+    end
+    describe '#scan_full(re, true, false)' do
+      it 'is same as #skip' do
+        ret = subject.scan_full(/\d{10}/, true, false)
+        ret.should == 10
+        subject.pos.should == 10
+      end
+    end
+    describe '#scan_full(re, false, true)' do
+      it 'is same as #check' do
+        ret = subject.scan_full(/\d{10}/, false, true)
+        ret.to_s.should == '0123456789'
+        subject.pos.should == 0
+      end
+    end
+    describe '#scan_full(re, false, false)' do
+      it 'is same as #match?' do
+        ret = subject.scan_full(/\d{10}/, false, false)
+        ret.should == 10
+        subject.pos.should == 0
+      end
+    end
+    describe '#search_full(re, true, true)' do
+      it 'is same as #scan_until' do
+        ret = subject.search_full(/789/, true, true)
+        ret.class.should == MmapScanner
+        ret.to_s.should == '0123456789'
+        subject.pos.should == 10
+      end
+    end
+    describe '#search_full(re, true, false)' do
+      it 'is same as #skip_until' do
+        ret = subject.search_full(/789/, true, false)
+        ret.should == 10
+        subject.pos.should == 10
+      end
+    end
+    describe '#search_full(re, false, true)' do
+      it 'is same as #check_until' do
+        ret = subject.search_full(/789/, false, true)
+        ret.to_s.should == '0123456789'
+        subject.pos.should == 0
+      end
+    end
+    describe '#search_full(re, false, false)' do
+      it 'is same as #exist?' do
+        ret = subject.search_full(/789/, false, false)
+        ret.should == 10
+        subject.pos.should == 0
       end
     end
     describe '#rest' do

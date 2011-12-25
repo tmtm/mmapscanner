@@ -46,8 +46,21 @@ Usage
 * scan はポインタ位置で正規表現との一致を試みます。一致した部分を返し、ポインタを進めます。一致しない場合は nil を返します。
 * scan_until は scan と同じですが、現在のポインタの位置以降で一致を試みます。
 * check は scan と同じですが、ポインタを進めません。
+* check_until は check と同じですが、現在のポインタの位置以降で一致を試みます。
 * skip は scan と同じですが、一致したバイト数を返します。
+* skip_until は skip と同じですが、現在のポインタの位置以降で一致を試みます。
 * match? は check と同じですが、一致したバイト数を返します。
+* exist? は match? と同じですが、現在のポインタの位置以降で一致を試みます。
+* scan_full(re, s, f) はポインタの位置でスキャンします。
+  * scan_full(re, true, true) は scan(re) と同じです。
+  * scan_full(re, true, false) は skip(re) と同じです。
+  * scan_full(re, false, true) は check(re) と同じです。
+  * scan_full(re, false, false) は match?(re) と同じです。
+* search_full(re, s, f) はポインタの位置以降でスキャンします。
+  * search_full(re, true, true) は scan_until(re) と同じです。
+  * search_full(re, true, false) は skip_until(re) と同じです。
+  * search_full(re, false, true) は check_until(re) と同じです。
+  * search_full(re, false, false) は exist?(re) と同じです。
 * peek は指定したバイト数分のデータを返します。ポインタは進みません。
 * eos? はポインタが末尾に達していると true を返します。
 * rest はポインタ以降のデータを返します。

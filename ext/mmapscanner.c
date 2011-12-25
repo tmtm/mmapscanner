@@ -355,6 +355,18 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     return create_from_mmapscanner(obj, old_pos, matched_len);
 }
 
+static VALUE scan_full(VALUE obj, VALUE re, VALUE forward, VALUE ret_ms)
+{
+    return scan_sub(obj, re, (forward != Qnil && forward != Qfalse), 1,
+                    (ret_ms == Qnil || ret_ms == Qfalse));
+}
+
+static VALUE search_full(VALUE obj, VALUE re, VALUE forward, VALUE ret_ms)
+{
+    return scan_sub(obj, re, (forward != Qnil && forward != Qfalse), 0,
+                    (ret_ms == Qnil || ret_ms == Qfalse));
+}
+
 static VALUE scan(VALUE obj, VALUE re)
 {
     return scan_sub(obj, re, 1, 1, 0);
@@ -370,14 +382,29 @@ static VALUE check(VALUE obj, VALUE re)
     return scan_sub(obj, re, 0, 1, 0);
 }
 
+static VALUE check_until(VALUE obj, VALUE re)
+{
+    return scan_sub(obj, re, 0, 0, 0);
+}
+
 static VALUE skip(VALUE obj, VALUE re)
 {
     return scan_sub(obj, re, 1, 1, 1);
 }
 
+static VALUE skip_until(VALUE obj, VALUE re)
+{
+    return scan_sub(obj, re, 1, 0, 1);
+}
+
 static VALUE match_p(VALUE obj, VALUE re)
 {
     return scan_sub(obj, re, 0, 1, 1);
+}
+
+static VALUE exist_p(VALUE obj, VALUE re)
+{
+    return scan_sub(obj, re, 0, 0, 1);
 }
 
 static VALUE peek(VALUE obj, VALUE size)
@@ -474,11 +501,16 @@ void Init_mmapscanner(void)
     rb_define_method(cMmapScanner, "inspect", inspect, 0);
     rb_define_method(cMmapScanner, "pos", pos, 0);
     rb_define_method(cMmapScanner, "pos=", set_pos, 1);
+    rb_define_method(cMmapScanner, "scan_full", scan_full, 3);
+    rb_define_method(cMmapScanner, "search_full", search_full, 3);
     rb_define_method(cMmapScanner, "scan", scan, 1);
     rb_define_method(cMmapScanner, "scan_until", scan_until, 1);
     rb_define_method(cMmapScanner, "check", check, 1);
+    rb_define_method(cMmapScanner, "check_until", check_until, 1);
     rb_define_method(cMmapScanner, "skip", skip, 1);
+    rb_define_method(cMmapScanner, "skip_until", skip_until, 1);
     rb_define_method(cMmapScanner, "match?", match_p, 1);
+    rb_define_method(cMmapScanner, "exist?", exist_p, 1);
     rb_define_method(cMmapScanner, "peek", peek, 1);
     rb_define_method(cMmapScanner, "eos?", eos_p, 0);
     rb_define_method(cMmapScanner, "rest", rest, 0);
