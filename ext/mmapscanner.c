@@ -404,7 +404,7 @@ static VALUE rest(VALUE obj)
     return create_from_mmapscanner(obj, ms->pos, ms->size - ms->pos);
 }
 
-static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, int *pos, int *len)
+static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, size_t *pos, size_t *len)
 {
     int i = 0;
     if (ms->matched == 0)
