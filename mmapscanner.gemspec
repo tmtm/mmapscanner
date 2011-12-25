@@ -8,5 +8,5 @@ Gem::Specification.new do |spec|
   spec.name = 'mmapscanner'
   spec.summary = 'MmapScanner like StringScanner but it use mmap(2)-ed data'
   spec.test_files = Dir.glob('spec/*_spec.rb')
-  spec.version = '0.3.7'
+  spec.version = '0.3.8'
 end
