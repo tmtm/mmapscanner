@@ -53,12 +53,16 @@ static VALUE mmap_allocate(VALUE klass)
 static VALUE mmap_initialize(int argc, VALUE *argv, VALUE obj)
 {
     mmap_data_t *data;
-    Data_Get_Struct(obj, mmap_data_t, data);
-    if (data->ptr)
-        rb_raise(rb_eRuntimeError, "already mapped");
     VALUE file, voffset, vlength;
     off_t offset = 0;
     size_t length = 0;
+    int fd;
+    struct stat st;
+    void *ptr;
+
+    Data_Get_Struct(obj, mmap_data_t, data);
+    if (data->ptr)
+        rb_raise(rb_eRuntimeError, "already mapped");
     rb_scan_args(argc, argv, "12", &file, &voffset, &vlength);
     if (TYPE(file) != T_FILE)
         rb_raise(rb_eTypeError, "File object required");
@@ -66,15 +70,13 @@ static VALUE mmap_initialize(int argc, VALUE *argv, VALUE obj)
         rb_raise(rb_eRangeError, "offset out of range: %lld", NUM2LL(voffset));
     if (vlength != Qnil && NUM2LL(vlength) < 0)
         rb_raise(rb_eRangeError, "length out of range: %lld", NUM2LL(vlength));
-    int fd = FIX2INT(rb_funcall(file, rb_intern("fileno"), 0));
-    struct stat st;
+    fd = FIX2INT(rb_funcall(file, rb_intern("fileno"), 0));
     if (fstat(fd, &st) < 0)
         rb_sys_fail("fstat");
     offset = voffset == Qnil ? 0 : NUM2SIZET(voffset);
     length = vlength == Qnil ? st.st_size : NUM2SIZET(vlength);
     if (offset + length > st.st_size)
         length = st.st_size - offset;
-    void *ptr;
     if ((ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, offset)) == MAP_FAILED)
         rb_sys_fail("mmap");
 
@@ -269,8 +271,8 @@ static VALUE pos(VALUE obj)
 static VALUE set_pos(VALUE obj, VALUE pos)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t p, size;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
 
     if (NUM2LL(pos) < 0)
         rb_raise(rb_eRangeError, "out of range: %lld", NUM2LL(pos));
@@ -285,7 +287,6 @@ static VALUE set_pos(VALUE obj, VALUE pos)
 static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeonly)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     regex_t *rb_reg_prepare_re(VALUE re, VALUE str);
     regex_t *reg;
     int tmpreg;
@@ -294,6 +295,7 @@ static VALUE scan_sub(VALUE obj, VALUE re, int forward, int headonly, int sizeon
     char *ptr;
     mmap_data_t *mdata;
 
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     ms->matched = 0;
     Check_Type(re, T_REGEXP);
    if (ms->pos > ms->size)
@@ -419,8 +421,8 @@ static VALUE exist_p(VALUE obj, VALUE re)
 static VALUE peek(VALUE obj, VALUE size)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t sz = NUM2SIZET(size);
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     if (sz > ms->size - ms->pos)
         sz = ms->size - ms->pos;
     return create_from_mmapscanner(obj, ms->pos, sz);
@@ -465,8 +467,8 @@ static int matched_sub(int argc, VALUE *argv, mmapscanner_t *ms, size_t *pos, si
 static VALUE matched(int argc, VALUE *argv, VALUE obj)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     size_t pos, len;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     if (matched_sub(argc, argv, ms, &pos, &len) == 0)
         return Qnil;
     return create_from_mmapscanner(obj, pos, len);
@@ -475,9 +477,9 @@ static VALUE matched(int argc, VALUE *argv, VALUE obj)
 static VALUE matched_str(int argc, VALUE *argv, VALUE obj)
 {
     mmapscanner_t *ms;
-    Data_Get_Struct(obj, mmapscanner_t, ms);
     mmap_data_t *mdata;
     size_t pos, len;
+    Data_Get_Struct(obj, mmapscanner_t, ms);
     if (matched_sub(argc, argv, ms, &pos, &len) == 0)
         return Qnil;
     if (TYPE(ms->data) == T_STRING)
