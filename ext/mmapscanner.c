@@ -159,7 +159,16 @@ static VALUE initialize(int argc, VALUE *argv, VALUE obj)
         src = ms->data;
         src_size_defined = 1;
     } else if (TYPE(src) == T_FILE) {
-        src = rb_funcall(cMmap, rb_intern("new"), 1, src);
+        int fd = FIX2INT(rb_funcall(src, rb_intern("fileno"), 0));
+        struct stat st;
+        if (fstat(fd, &st) < 0)
+            rb_sys_fail("fstat");
+        if (st.st_size == 0) {
+            src = rb_str_new(NULL, 0);
+            src_size = 0;
+        } else {
+            src = rb_funcall(cMmap, rb_intern("new"), 1, src);
+        }
     }
     if (rb_obj_class(src) == cMmap) {
         if (!src_size_defined) {

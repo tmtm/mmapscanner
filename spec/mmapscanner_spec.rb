@@ -322,6 +322,21 @@ describe MmapScanner do
         subject.data.should be_kind_of MmapScanner::Mmap
       end
     end
+    context 'empty file' do
+      before do
+        tmpf = Tempfile.new 'mmapscanner_empty_file'
+        @file = File.open(tmpf.path)
+      end
+      it '#size returns 0' do
+        subject.size.should == 0
+      end
+      it '#to_s returns empty String' do
+        subject.to_s.should == ''
+      end
+      it '#eos? returns true' do
+        subject.eos?.should == true
+      end
+    end
   end
 
   context 'with String' do
